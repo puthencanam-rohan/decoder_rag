@@ -66,7 +66,8 @@ def find_most_similar(needle, haystack):
 
 def main():
     EMBEDDING_MODEL = "nomic-embed-text:latest"
-    INFERENCE_MODEL = "Llama3.2-3B:latest"
+    # INFERENCE_MODEL = "Llama3.2-3B:latest"
+    INFERENCE_MODEL = "Mistral7BI"
     SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions
     based on snippets of text provided in context. Answer only using the context provided
     , being as concise as possible. If you're unsure, just say that you don't know.
@@ -76,6 +77,7 @@ def main():
     paragraphs = parse_file(filename)
     start = time.perf_counter()
     # embeddings = get_embeddings(filename, EMBEDDING_MODEL, paragraphs)
+    # embeddings = get_embeddings(filename, INFERENCE_MODEL, paragraphs[5:90])
     embeddings = get_embeddings(filename, INFERENCE_MODEL, paragraphs)
     print(
         f"Calculating embeddings using {INFERENCE_MODEL}, took: {time.perf_counter() - start:.2f}s"
@@ -100,7 +102,7 @@ def main():
             {
                 "role": "system",
                 "content": SYSTEM_PROMPT
-                + "\n".join(paragraphs[item[1]] for item in most_similar_chunks),
+                + " ".join(paragraphs[item[1]] for item in most_similar_chunks),
             },
             {"role": "user", "content": prompt},
         ],
