@@ -1,1 +1,5 @@
 .venv/*
+chroma/*
+embeddings/*
+*.py~
+*.txt
