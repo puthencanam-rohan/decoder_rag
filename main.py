@@ -4,12 +4,52 @@ import time
 import ollama
 import numpy as np
 from numpy.linalg import norm
+from langchain_ollama import OllamaEmbeddings
+
+# from langchain_text_splitters import RecursiveCharacterTextSplitter
+# from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+
+
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
+
+def create_vector_store(collection_name: str, modelname: str) -> Chroma:
+    """
+    This function creates a ChromaDB vector store.
+    Returns a client.
+    """
+    embeddings = OllamaEmbeddings(model=modelname)
+
+    vector_store = Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory="./embeddings/chroma_langchain_db",  # Where to save data locally, remove if not necessary
+    )
+
+    return vector_store
+
+
+def parse_text_file_and_save_embeddings(filename, vector_store):
+    """
+    This function parses a text file and saves embeddings in a file.
+    DO NOT USE FOR PRODUCTION. Use chroma-db or another vector store.
+    """
+    with open(filename, encoding="utf-8-sig") as f:
+        # for no, line in enumerate(f.readlines()[:5]):
+        for no, line in enumerate(f.readlines()):
+            line = line.strip()
+
+            document = Document(page_content=line, metadata={"line_no": no})
+            vector_store.add_documents(documents=[document], ids=[str(no)])
 
 
 def parse_file(filename):
     with open(filename, encoding="utf-8-sig") as f:
         paragraphs = []
         buffer = []
+        # FIXME:
         for line in f.readlines():
             # print(line)
             line = line.strip()
@@ -74,26 +114,21 @@ def main():
     Context: 
     """
     filename = "peter_pan.txt"
-    paragraphs = parse_file(filename)
+    vstore = create_vector_store("peter_pan", INFERENCE_MODEL)
     start = time.perf_counter()
-    # embeddings = get_embeddings(filename, EMBEDDING_MODEL, paragraphs)
-    # embeddings = get_embeddings(filename, INFERENCE_MODEL, paragraphs[5:90])
-    embeddings = get_embeddings(filename, INFERENCE_MODEL, paragraphs)
+    parse_text_file_and_save_embeddings(filename, vstore)
     print(
         f"Calculating embeddings using {INFERENCE_MODEL}, took: {time.perf_counter() - start:.2f}s"
     )
-    # print(paragraphs[:10])
-    print(len(embeddings))
 
-    prompt = input(">>: ")
+    # prompt = input("")
+    prompt = "Who is the main villain of this story?"
     # prompt_embedding = ollama.embeddings(model=EMBEDDING_MODEL, prompt=prompt)[
-    prompt_embedding = ollama.embeddings(model=INFERENCE_MODEL, prompt=prompt)[
-        "embedding"
-    ]
-
-    most_similar_chunks = find_most_similar(prompt_embedding, embeddings)[:5]
-    for item in most_similar_chunks:
-        print(item[0], paragraphs[item[1]])
+    results = vstore.similarity_search(query=prompt, k=5)
+    lines = []
+    for doc in results:
+        lines.append(doc.page_content)
+        print(f"* {doc.page_content} [{doc.metadata}]")
 
     start = time.perf_counter()
     response = ollama.chat(
@@ -101,8 +136,7 @@ def main():
         messages=[
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT
-                + " ".join(paragraphs[item[1]] for item in most_similar_chunks),
+                "content": SYSTEM_PROMPT + " ".join(lines),
             },
             {"role": "user", "content": prompt},
         ],
