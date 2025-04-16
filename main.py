@@ -10,7 +10,8 @@ from langchain_ollama import OllamaEmbeddings
 # from langchain_community.vectorstores import Chroma
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-import chromadb
+
+# import chromadb
 
 
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
