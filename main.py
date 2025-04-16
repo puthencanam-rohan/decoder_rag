@@ -10,12 +10,15 @@ from langchain_ollama import OllamaEmbeddings
 # from langchain_community.vectorstores import Chroma
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+import chromadb
 
 
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 
-def create_vector_store(collection_name: str, modelname: str) -> Chroma:
+def create_vector_store(
+    collection_name: str, modelname: str, chroma_db_file: str
+) -> Chroma:
     """
     This function creates a ChromaDB vector store.
     Returns a client.
@@ -25,7 +28,7 @@ def create_vector_store(collection_name: str, modelname: str) -> Chroma:
     vector_store = Chroma(
         collection_name=collection_name,
         embedding_function=embeddings,
-        persist_directory="./embeddings/chroma_langchain_db",  # Where to save data locally, remove if not necessary
+        persist_directory=chroma_db_file,  # Where to save data locally, remove if not necessary
     )
 
     return vector_store
@@ -37,12 +40,18 @@ def parse_text_file_and_save_embeddings(filename, vector_store):
     DO NOT USE FOR PRODUCTION. Use chroma-db or another vector store.
     """
     with open(filename, encoding="utf-8-sig") as f:
-        # for no, line in enumerate(f.readlines()[:5]):
+        lines = []
         for no, line in enumerate(f.readlines()):
             line = line.strip()
 
-            document = Document(page_content=line, metadata={"line_no": no})
-            vector_store.add_documents(documents=[document], ids=[str(no)])
+            if line:
+                lines.append(line)
+            elif lines and not line:
+                document = Document(
+                    page_content=" ".join(lines), metadata={"line_no": no}
+                )
+                vector_store.add_documents(documents=[document], ids=[str(no)])
+                lines = []
 
 
 def parse_file(filename):
@@ -108,23 +117,36 @@ def main():
     EMBEDDING_MODEL = "nomic-embed-text:latest"
     # INFERENCE_MODEL = "Llama3.2-3B:latest"
     INFERENCE_MODEL = "Mistral7BI"
+    CHROMA_DB_FILE = "./embeddings/chroma_langchain_db"
+    COLLECTION_NAME = "peter_pan"
     SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions
     based on snippets of text provided in context. Answer only using the context provided
     , being as concise as possible. If you're unsure, just say that you don't know.
     Context: 
     """
+    vstore = None
     filename = "peter_pan.txt"
-    vstore = create_vector_store("peter_pan", INFERENCE_MODEL)
-    start = time.perf_counter()
-    parse_text_file_and_save_embeddings(filename, vstore)
-    print(
-        f"Calculating embeddings using {INFERENCE_MODEL}, took: {time.perf_counter() - start:.2f}s"
-    )
+    if not os.path.exists(CHROMA_DB_FILE):
+        vstore = create_vector_store(COLLECTION_NAME, EMBEDDING_MODEL, CHROMA_DB_FILE)
+        start = time.perf_counter()
+        parse_text_file_and_save_embeddings(filename, vstore)
+        print(
+            f"Calculating embeddings using {EMBEDDING_MODEL}, took: {time.perf_counter() - start:.2f}s"
+        )
+    else:
+        print(f"Using existing vector database for {COLLECTION_NAME}")
+        embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
 
-    # prompt = input("")
-    prompt = "Who is the main villain of this story?"
-    # prompt_embedding = ollama.embeddings(model=EMBEDDING_MODEL, prompt=prompt)[
-    results = vstore.similarity_search(query=prompt, k=5)
+        vstore = Chroma(
+            collection_name=COLLECTION_NAME,
+            embedding_function=embeddings,
+            create_collection_if_not_exists=False,
+            persist_directory=CHROMA_DB_FILE,
+        )
+
+    prompt = input("")
+    # prompt = "Who is the main villain of this story?"
+    results = vstore.similarity_search(query=prompt, k=10)
     lines = []
     for doc in results:
         lines.append(doc.page_content)
