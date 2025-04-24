@@ -9,3 +9,7 @@ Retrieval Augmented Generation Tutorial
 # Reference
 Decoder's RAG tutorial
 https://www.youtube.com/watch?v=V1Mz8gMBDMo&pp=ygUSZGVjb2RlciBvbGxhbWEgcmFn
+
+# Model
+Mistral 7B works well for RAG on my CPU-based laptop.
+https://huggingface.co/MaziyarPanahi/Mistral-7B-Instruct-v0.3-GGUF/blob/main/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf
